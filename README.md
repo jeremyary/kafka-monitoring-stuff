@@ -1,11 +1,14 @@
 # kafka-monitoring-stuff
 
 This repo has a set of Make targets for the installation and configuration of Kafka in OSD (using Strimzi), and various components to monitor Kafka.
+It is intended as a place for hacking things together and dumping any useful stuff until it’s found a more permanent home.
+
+**Not for production use**
 
 ## Prerequisites
 
 - A running OpenShift 4 cluster with kubeadmin access
-- oc and kubectl binaries, logged in to the OpenShift 4 cluster
+- oc > 4.5 and kubectl > 1.18 binaries, logged in to the OpenShift 4 cluster
 - jq installed
 - (optional) The strimzi-operator is running in the cluster. Make targets exist to do this as well.
 - (optional) A Kafka CR exists & has been reconciled into a running Kafka cluster. Make targets exist to do this as well.
@@ -96,6 +99,56 @@ To specify which namespace strimzi & kafka are in, run the cmd with the followin
 ```sh
 STRIMZI_OPERATOR_NAMESPACE=my-strimzi-ns KAFKA_CLUSTER_NAMESPACE=my-kafka-ns make install/monitoring/cluster
 ```
+
+### 6) Install *Observatorium*
+
+You can install observatorium and it's components with:
+
+```sh
+make install/observatorium
+```
+
+and uninstall it with:
+
+```sh
+make uninstall/observatorium
+```
+
+#### Pointing the on cluster monitoring stack to observatorium
+
+You can point Prometheus remote write and Promtail to an existing Observatorium instance:
+
+```sh
+OBSERVATORIUM_APPS_URL=<e.g. apps-crc.testing> make setup/observatorium
+```
+
+This will automatically fetch tokens and update the Prometheus and Promtail configuration
+
+#### Tenant tokens
+
+A default tenant with the name `test` is created. To obtain a token for this tenant:
+
+1) Get the route to the OIDC server:
+
+```
+DEX_ROUTE=$(oc get routes dex -ndex -ojsonpath={.spec.host})
+```
+
+2) Request a token:
+
+```
+curl --request POST \
+              --url http://${DEX_ROUTE}/dex/token \
+              --header 'content-type: application/x-www-form-urlencoded' \
+              --data grant_type=password \
+              --data username=admin@example.com \
+              --data password=password \
+              --data client_id=test \
+              --data client_secret=ZXhhbXBsZS1hcHAtc2VjcmV0 \
+              --data scope="openid email" | sed 's/^{.*"id_token":[^"]*"\([^"]*\)".*}/\1/'
+```
+
+__NOTE__: Observatorium is currently not part of the `all` or `clean` targets.
 
 ## Uninstallation
 
